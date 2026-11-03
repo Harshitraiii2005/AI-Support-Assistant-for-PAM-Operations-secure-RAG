@@ -1,0 +1,9 @@
+.git
+.venv
+data
+eval
+tests
+**/__pycache__
+.env
+.env.*
+knowledge_base/external/*

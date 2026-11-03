@@ -1,0 +1,44 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.11"
+          enable-cache: true
+      - run: uv sync --frozen
+      - run: uv run ruff check .
+      - run: uv run mypy src tests
+      # offline: in-memory Qdrant, hashed embeddings, recording fake LLM (no Ollama needed)
+      - run: uv run pytest -q
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t pam-copilot:ci .
+      - name: compose config must refuse to run without secrets
+        run: |
+          ! docker compose config -q
+          OPERATOR_TOKEN=x ADMIN_TOKEN=y QDRANT_API_KEY=z docker compose config -q
+
+  secret-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: gitleaks
+        run: |
+          docker run --rm -v "$PWD:/repo" ghcr.io/gitleaks/gitleaks:v8.28.0 \
+            git /repo --redact --verbose

@@ -1,0 +1,26 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+dist/
+build/
+.DS_Store
+
+# secrets and local config never go in the repo
+.env
+.env.*
+!.env.example
+
+# generated data (synthetic logs, vector store snapshots, audit logs)
+data/
+
+# user-downloaded vendor docs: ingested locally, never redistributed
+knowledge_base/external/*
+!knowledge_base/external/.gitkeep
+
+# eval run artifacts (results.json and summary.md are committed)
+eval/results/eval_audit.jsonl
+eval/results/quick*

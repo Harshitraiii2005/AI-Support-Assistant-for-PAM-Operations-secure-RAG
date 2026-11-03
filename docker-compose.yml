@@ -1,0 +1,95 @@
+# docker compose up --build        (cp .env.example .env and fill it in first)
+# Only the UI (8501) and API (8000) are published, and only on 127.0.0.1.
+# Qdrant and Ollama are reachable on the internal network only.
+name: pam-copilot
+
+x-hardening: &hardening
+  read_only: true
+  tmpfs: [/tmp, "/home/app:uid=10001,gid=10001,mode=0700"]  # app user's home, writable
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
+
+x-backend-env: &backend-env
+  OLLAMA_URL: ${OLLAMA_URL:-http://ollama:11434}
+  QDRANT_URL: http://qdrant:6333
+  QDRANT_API_KEY: ${QDRANT_API_KEY:?set QDRANT_API_KEY in .env}
+  CHAT_MODEL: ${CHAT_MODEL:-qwen2.5:7b-instruct}
+  EMBED_MODEL: ${EMBED_MODEL:-nomic-embed-text}
+
+services:
+  ollama:  # profile "bundled-ollama"; on macOS run Ollama natively for Metal GPU instead
+    image: ollama/ollama:0.12.3
+    profiles: [bundled-ollama]
+    volumes: [ollama:/root/.ollama]
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      retries: 30
+
+  models:  # one-shot: pull the models into the bundled Ollama
+    image: ollama/ollama:0.12.3
+    profiles: [bundled-ollama]
+    depends_on:
+      ollama: {condition: service_healthy}
+    environment:
+      OLLAMA_HOST: ollama:11434
+    entrypoint: ["sh", "-c", "ollama pull ${EMBED_MODEL:-nomic-embed-text} && ollama pull ${CHAT_MODEL:-qwen2.5:7b-instruct}"]
+
+  qdrant:
+    image: qdrant/qdrant:v1.17.0
+    environment:
+      QDRANT__SERVICE__API_KEY: ${QDRANT_API_KEY:?set QDRANT_API_KEY in .env}
+      QDRANT__TELEMETRY_DISABLED: "true"
+    volumes: [qdrant:/qdrant/storage]
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c ':> /dev/tcp/127.0.0.1/6333' || exit 1"]
+      interval: 5s
+      retries: 20
+
+  ingest:  # one-shot: rebuild the index from knowledge_base/ (re-run after editing runbooks)
+    build: .
+    image: pam-copilot:local
+    <<: *hardening
+    command: ["python", "-m", "pam_copilot.ingest"]
+    environment: *backend-env
+    volumes:
+      - ./knowledge_base/external:/app/knowledge_base/external:ro
+    depends_on:
+      qdrant: {condition: service_healthy}
+      models: {condition: service_completed_successfully, required: false}
+
+  api:
+    image: pam-copilot:local
+    <<: *hardening
+    environment:
+      <<: *backend-env
+      OPERATOR_TOKEN: ${OPERATOR_TOKEN:?set OPERATOR_TOKEN in .env}
+      ADMIN_TOKEN: ${ADMIN_TOKEN:?set ADMIN_TOKEN in .env}
+    volumes: [audit:/app/data]
+    ports: ["127.0.0.1:8000:8000"]
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    depends_on:
+      ingest: {condition: service_completed_successfully}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      retries: 12
+    restart: unless-stopped
+
+  ui:  # gets no secrets: users paste their own token in the sidebar
+    image: pam-copilot:local
+    <<: *hardening
+    command: ["streamlit", "run", "src/pam_copilot/ui.py", "--server.address=0.0.0.0",
+              "--server.port=8501", "--browser.gatherUsageStats=false",
+              "--client.toolbarMode=minimal"]
+    environment:
+      API_URL: http://api:8000
+    ports: ["127.0.0.1:8501:8501"]
+    depends_on:
+      api: {condition: service_healthy}
+    restart: unless-stopped
+
+volumes:
+  ollama:
+  qdrant:
+  audit:
