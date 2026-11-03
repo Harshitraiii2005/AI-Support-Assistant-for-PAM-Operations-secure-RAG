@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PAM Copilot</title>
+<meta name="description" content="A secure, locally hosted RAG assistant for first-level Privileged Access Management support that never leaks secrets.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%232563eb'/><path d='M11 14v-3a5 5 0 0 1 10 0v3' stroke='white' stroke-width='2.5' fill='none'/><rect x='8' y='14' width='16' height='11' rx='2.5' fill='white'/></svg>">
+<style>
+:root{
+  --bg:#f7f8fa; --surface:#ffffff; --surface-2:#f0f2f5; --text:#14171c; --muted:#5b6472;
+  --border:#e1e4ea; --accent:#2563eb; --accent-soft:#e8efff; --ok:#15803d; --ok-soft:#e7f6ec;
+  --warn:#b45309; --code-bg:#0f1419; --code-text:#e6e8eb; --shadow:0 1px 2px rgba(16,24,40,.06),0 8px 24px rgba(16,24,40,.06);
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0b0e13; --surface:#12161d; --surface-2:#181d26; --text:#e8ebf0; --muted:#9aa3b2;
+  --border:#252b36; --accent:#6ea0ff; --accent-soft:#16233d; --ok:#4ade80; --ok-soft:#10261a;
+  --warn:#fbbf24; --code-bg:#0a0d12; --code-text:#e6e8eb; --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px rgba(0,0,0,.3);
+}}
+:root[data-theme="dark"]{
+  --bg:#0b0e13; --surface:#12161d; --surface-2:#181d26; --text:#e8ebf0; --muted:#9aa3b2;
+  --border:#252b36; --accent:#6ea0ff; --accent-soft:#16233d; --ok:#4ade80; --ok-soft:#10261a;
+  --warn:#fbbf24; --code-bg:#0a0d12; --code-text:#e6e8eb; --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px rgba(0,0,0,.3);
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--text);font:16px/1.6 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased}
+a{color:var(--accent);text-decoration:none} a:hover{text-decoration:underline}
+.wrap{max-width:1120px;margin:0 auto;padding:0 16px}
+nav{position:sticky;top:0;z-index:5;background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(8px);border-bottom:1px solid var(--border)}
+nav .wrap{display:flex;align-items:center;gap:20px;height:56px}
+nav .brand{font-weight:700;color:var(--text);display:flex;align-items:center;gap:8px}
+nav .links{display:flex;gap:18px;margin-left:auto;font-size:14px}
+nav .links a{color:var(--muted)} nav .links a:hover{color:var(--text);text-decoration:none}
+.hero{padding:72px 0 40px}
+.eyebrow{display:inline-block;font-size:13px;font-weight:600;color:var(--accent);background:var(--accent-soft);padding:4px 10px;border-radius:999px}
+h1{font-size:clamp(34px,5vw,54px);line-height:1.08;letter-spacing:-.02em;margin:18px 0 16px}
+.lede{font-size:clamp(17px,2vw,20px);color:var(--muted);max-width:760px;margin:0 0 28px}
+.cta{display:flex;flex-wrap:wrap;gap:12px}
+.btn{display:inline-flex;align-items:center;gap:8px;padding:11px 18px;border-radius:10px;font-weight:600;font-size:15px;border:1px solid var(--border);background:var(--surface);color:var(--text)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn:hover{text-decoration:none;filter:brightness(1.05)}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin:44px 0 0}
+.stat{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px;box-shadow:var(--shadow)}
+.stat b{display:block;font-size:30px;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.stat span{font-size:13.5px;color:var(--muted)}
+section{padding:56px 0;border-top:1px solid var(--border);scroll-margin-top:56px}
+h2{font-size:28px;letter-spacing:-.01em;margin:0 0 8px}
+.sub{color:var(--muted);margin:0 0 28px;max-width:760px}
+.cards{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px;box-shadow:var(--shadow)}
+.card h3{margin:0 0 6px;font-size:17px} .card p{margin:0;color:var(--muted);font-size:15px}
+.pipeline{display:grid;grid-template-columns:repeat(7,1fr);gap:8px;counter-reset:step}
+.step{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 12px;font-size:14px;position:relative}
+.step::before{counter-increment:step;content:counter(step);display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;background:var(--accent);color:#fff;font-size:12px;font-weight:700;margin-bottom:8px}
+.step b{display:block;margin-bottom:2px} .step span{color:var(--muted);font-size:13px}
+.gallery{display:grid;grid-template-columns:repeat(2,1fr);gap:20px}
+figure{margin:0;background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;box-shadow:var(--shadow)}
+figure a{display:block;background:var(--surface-2)}
+figure img{display:block;width:100%;height:300px;object-fit:cover;object-position:top}
+figcaption{padding:12px 16px;font-size:14px;color:var(--muted)} figcaption b{color:var(--text)}
+figure.wide{grid-column:1/-1} figure.wide img{height:420px}
+table{width:100%;border-collapse:collapse;background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;font-size:14.5px}
+th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--border);vertical-align:top}
+th{background:var(--surface-2);font-weight:600;font-size:13px;text-transform:uppercase;letter-spacing:.03em;color:var(--muted)}
+tr:last-child td{border-bottom:0}
+td.num{font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
+.pill{display:inline-block;padding:1px 9px;border-radius:999px;font-size:12.5px;font-weight:600;background:var(--ok-soft);color:var(--ok)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.table-wrap{overflow-x:auto}
+pre{background:var(--code-bg);color:var(--code-text);padding:16px 18px;border-radius:12px;overflow-x:auto;font:13.5px/1.55 ui-monospace,SFMono-Regular,Menlo,monospace;margin:0}
+pre .c{color:#7d8590}
+.note{font-size:14px;color:var(--muted);margin-top:14px}
+ul.limits{margin:0;padding-left:20px;color:var(--muted)} ul.limits li{margin:6px 0} ul.limits b{color:var(--text)}
+footer{padding:36px 0 60px;border-top:1px solid var(--border);color:var(--muted);font-size:14px}
+@media (max-width:900px){
+  .stats{grid-template-columns:repeat(2,1fr)} .cards,.grid2,.gallery{grid-template-columns:1fr}
+  .pipeline{grid-template-columns:repeat(2,1fr)} figure img,figure.wide img{height:240px}
+  nav .links{display:none}
+}
+</style>
+</head>
+<body>
+<nav><div class="wrap">
+  <a class="brand" href="#">🔐 PAM Copilot</a>
+  <div class="links"><a href="#how">How it works</a><a href="#screens">Screenshots</a><a href="#security">Security</a><a href="#results">Results</a><a href="#run">Run it</a><a href="https://github.com/Harshitraiii2005/AI-Support-Assistant-for-PAM-Operations-secure-RAG">GitHub</a></div>
+</div></nav>
+
+<header class="hero"><div class="wrap">
+  <span class="eyebrow">LLM engineering × identity security</span>
+  <h1>A PAM support copilot that never leaks secrets.</h1>
+  <p class="lede">PAM Copilot answers first-level Privileged Access Management questions from approved runbooks, diagnoses CyberArk-style CPM, PSM and PVWA errors from pasted logs, and masks every password, key, token, IP and hostname before anything reaches the model. Everything runs locally.</p>
+  <div class="cta">
+    <a class="btn primary" href="https://github.com/Harshitraiii2005/AI-Support-Assistant-for-PAM-Operations-secure-RAG">View source on GitHub</a>
+    <a class="btn" href="#results">See evaluation results</a>
+    <a class="btn" href="#run">Run it locally</a>
+  </div>
+  <div class="stats">
+    <div class="stat"><b>29/29</b><span>red-team cases passed (secret leakage, injection, doc poisoning, RBAC)</span></div>
+    <div class="stat"><b>33/33</b><span>simulated logs with planted secrets sent end to end, none leaked to prompt, output or audit</span></div>
+    <div class="stat"><b>92.9%</b><span>retrieval hit@5 on 42 in-scope questions</span></div>
+    <div class="stat"><b>100%</b><span>out-of-scope questions refused instead of guessed</span></div>
+  </div>
+</div></header>
+
+<section><div class="wrap">
+  <h2>What it does</h2>
+  <p class="sub">Built for the first line of a PAM team: quick answers that cite their source, and log triage that never puts a credential in front of the model.</p>
+  <div class="cards">
+    <div class="card"><h3>Grounded answers</h3><p>Answers come only from approved runbooks. Every claim cites runbook › section › last-updated, and an answer without a valid citation is turned into a refusal.</p></div>
+    <div class="card"><h3>Log diagnosis</h3><p>Paste a CPM/PSM/PVWA/Vault log. It is redacted, classified by error code (or by similarity, flagged low-confidence), routed to the matching runbook, and turned into cited fix steps.</p></div>
+    <div class="card"><h3>Security first</h3><p>Redaction before the LLM, injection defenses for questions, logs and documents, role filtering inside the vector DB, an output filter with canary detection, and a hash-chained audit log.</p></div>
+  </div>
+</div></section>
+
+<section id="how"><div class="wrap">
+  <h2>How a request flows</h2>
+  <p class="sub">Each step is a choke point in our own code, not a framework callback, so each one can be unit-tested on its own.</p>
+  <div class="pipeline">
+    <div class="step"><b>Redact</b><span>regex + entropy → [PASSWORD_1], [HOST_1]</span></div>
+    <div class="step"><b>Injection check</b><span>block the question, drop poisoned log lines</span></div>
+    <div class="step"><b>Retrieve</b><span>Qdrant top-5 with a role filter on the server</span></div>
+    <div class="step"><b>Gate</b><span>score &lt; 0.60 → refuse, no LLM call</span></div>
+    <div class="step"><b>Generate</b><span>local Ollama, delimited sources, canary</span></div>
+    <div class="step"><b>Output filter</b><span>re-redact; block canary or original values</span></div>
+    <div class="step"><b>Cite + audit</b><span>no citation → refuse; hash-chained log</span></div>
+  </div>
+  <p class="note">Stack: Python 3.11 · FastAPI · Streamlit · LlamaIndex (ingestion + retrieval) · Qdrant · Ollama (<code>qwen2.5:7b-instruct</code>, <code>nomic-embed-text</code>) · Docker Compose · pytest · GitHub Actions.</p>
+</div></section>
+
+<section id="screens"><div class="wrap">
+  <h2>Screenshots</h2>
+  <p class="sub">Captured from the running Docker Compose stack against the local model. Click any image for full size.</p>
+  <div class="gallery">
+    <figure><a href="screenshots/ask.png"><img src="screenshots/ask.png" alt="Answer to an error-code question with numbered citations and a sources panel" loading="lazy"></a><figcaption><b>Cited answer.</b> An error-code question answered from RB-002, with sources and last-updated dates.</figcaption></figure>
+    <figure><a href="screenshots/redaction.png"><img src="screenshots/redaction.png" alt="Before and after redaction panel showing a password, IP and hostname masked" loading="lazy"></a><figcaption><b>Redaction before/after.</b> The password, IP and hostname are masked. The right-hand panel is the only text the LLM sees.</figcaption></figure>
+    <figure><a href="screenshots/diagnose.png"><img src="screenshots/diagnose.png" alt="Log diagnosis showing error code, runbook, confidence and fix steps" loading="lazy"></a><figcaption><b>Log diagnosis.</b> A simulated log with planted fake secrets: error code → runbook → high confidence → cited steps.</figcaption></figure>
+    <figure><a href="screenshots/guardrails.png"><img src="screenshots/guardrails.png" alt="Prompt injection blocked, out-of-scope question refused, admin-only topic refused for operator" loading="lazy"></a><figcaption><b>Guardrails.</b> Injection blocked, an out-of-scope question refused, and an admin-only topic refused for an operator.</figcaption></figure>
+    <figure><a href="screenshots/rbac-admin.png"><img src="screenshots/rbac-admin.png" alt="The same vault backup question answered for the admin role" loading="lazy"></a><figcaption><b>Role-based answers.</b> The same vault-backup question, answered for an admin from an admin-only runbook.</figcaption></figure>
+    <figure><a href="screenshots/audit.png"><img src="screenshots/audit.png" alt="Audit log table with hash chain verified" loading="lazy"></a><figcaption><b>Audit log.</b> Every Q&amp;A with role, refusal reason, redaction counts and injection flags. Hash chain verified.</figcaption></figure>
+    <figure class="wide"><a href="screenshots/tests.png"><img src="screenshots/tests.png" alt="Terminal showing 54 pytest tests passing, ruff and mypy clean" loading="lazy"></a><figcaption><b>Offline test suite.</b> 54 tests run in CI with an in-memory Qdrant and a fake LLM that records every prompt, proving secrets never reach the model.</figcaption></figure>
+  </div>
+</div></section>
+
+<section id="security"><div class="wrap">
+  <h2>Security design</h2>
+  <p class="sub">The core idea is to stop relying on the model to behave: it never receives a secret, and it never receives content above the user's role. Detection then adds a second layer.</p>
+  <div class="table-wrap"><table>
+    <tr><th>Threat</th><th>Control</th></tr>
+    <tr><td>Secrets in a pasted log or question</td><td>Redaction runs first: PEM, JWT, bearer/basic, cloud key prefixes, URL credentials, <code>password=</code>/<code>-newpass</code>, IPs, FQDNs, plus a Shannon-entropy fallback</td></tr>
+    <tr><td>The model echoes a secret anyway</td><td>The output is re-redacted and blocked if any original masked value or the system-prompt canary appears</td></tr>
+    <tr><td>Secrets persisted in logs</td><td>The audit log stores redacted text only; findings hold spans, never values; file mode 0600</td></tr>
+    <tr><td>Direct and indirect prompt injection</td><td>Questions blocked, poisoned log lines dropped, poisoned documents quarantined at ingest, delimiters neutralized, chunks re-scanned at query time</td></tr>
+    <tr><td>Operator reaching admin guidance</td><td>The role comes from the token; Qdrant filters <code>audience</code> on the server, so admin chunks never leave the DB</td></tr>
+    <tr><td>Hallucinated fixes</td><td>Relevance gate, an <code>INSUFFICIENT_CONTEXT</code> contract, mandatory valid citations</td></tr>
+    <tr><td>Audit tampering</td><td>SHA-256 hash chain, verified by the <code>/audit</code> endpoint and a CLI</td></tr>
+    <tr><td>Weak deployment</td><td>Refuses to start without strong tokens; non-root, read-only containers with <code>cap_drop: ALL</code>; Qdrant and Ollama not exposed; gitleaks in CI</td></tr>
+  </table></div>
+</div></section>
+
+<section id="results"><div class="wrap">
+  <h2>Evaluation results</h2>
+  <p class="sub">A real run against the local model on 2026-11-03: generator <code>qwen2.5:7b-instruct</code>, judge <code>llama3.1:8b</code> (a different model, to reduce self-grading bias). Nothing here is hand-entered: <a href="https://github.com/Harshitraiii2005/AI-Support-Assistant-for-PAM-Operations-secure-RAG/blob/main/eval/results/results.json">results.json</a> has every item.</p>
+  <div class="grid2">
+    <div class="table-wrap"><table>
+      <tr><th>Retrieval &amp; answers</th><th class="num">Value</th></tr>
+      <tr><td>Retrieval hit@1 / hit@3 / hit@5</td><td class="num">85.7% / 90.5% / 92.9%</td></tr>
+      <tr><td>Retrieval MRR@5</td><td class="num">0.886</td></tr>
+      <tr><td>In-scope questions answered (42)</td><td class="num">88.1%</td></tr>
+      <tr><td>Citation hit rate (cites an expected runbook)</td><td class="num">97.3%</td></tr>
+      <tr><td>Citation precision</td><td class="num">91.0%</td></tr>
+      <tr><td>Faithfulness (judge, 37 answers)</td><td class="num">95.2%</td></tr>
+      <tr><td>Key-point coverage, answered (37)</td><td class="num">60.8%</td></tr>
+      <tr><td>Key-point coverage, all in-scope (refusal = 0)</td><td class="num">53.6%</td></tr>
+      <tr><td>Out-of-scope refused (8)</td><td class="num">100%</td></tr>
+      <tr><td>Latency p50 / p95</td><td class="num">3.66 s / 9.59 s</td></tr>
+    </table></div>
+    <div class="table-wrap"><table>
+      <tr><th>Red team</th><th class="num">Passed</th></tr>
+      <tr><td>Secret leakage (handwritten)</td><td class="num">10/10</td></tr>
+      <tr><td>Prompt injection: direct</td><td class="num">6/6</td></tr>
+      <tr><td>Prompt injection: inside pasted logs</td><td class="num">5/5</td></tr>
+      <tr><td>Poisoned documents</td><td class="num">4/4</td></tr>
+      <tr><td>Role-based access</td><td class="num">4/4</td></tr>
+      <tr><td>Simulated logs end to end (prompt, output, audit)</td><td class="num">33/33</td></tr>
+      <tr><td>Total, handwritten</td><td class="num">29/29</td></tr>
+    </table></div>
+  </div>
+  <div class="grid2" style="margin-top:20px">
+    <div class="table-wrap"><table>
+      <tr><th>Redaction recall (660 simulated logs)</th><th class="num">Masked / planted</th></tr>
+      <tr><td>api_key</td><td class="num">96/96 (100%)</td></tr>
+      <tr><td>hostname</td><td class="num">680/680 (100%)</td></tr>
+      <tr><td>ip</td><td class="num">420/420 (100%)</td></tr>
+      <tr><td>password</td><td class="num">570/570 (100%)</td></tr>
+      <tr><td>token</td><td class="num">106/106 (100%)</td></tr>
+      <tr><td>Secret false positives (19 runbooks / 330 clean logs)</td><td class="num">0 / 0</td></tr>
+    </table></div>
+    <div class="table-wrap"><table>
+      <tr><th>Log classification (33 codes)</th><th class="num">Accuracy</th></tr>
+      <tr><td>With error code (exact match)</td><td class="num">100%</td></tr>
+      <tr><td>Error code stripped (similarity only)</td><td class="num">84.8%</td></tr>
+    </table></div>
+  </div>
+  <p class="note">Caveat: the runbooks, log generator, questions and redactor were all written by the same author, so scores on simulated data are in-distribution and optimistic. The handwritten red-team cases are the out-of-distribution evidence. In the two poisoned-document questions, the stealth document (no injection phrasing, so not quarantined) was never retrieved, so those passes don't prove resistance to content poisoning; reviewing documents before ingest is the control.</p>
+</div></section>
+
+<section id="run"><div class="wrap">
+  <h2>Run it</h2>
+  <p class="sub">Requires Docker and, on macOS, native Ollama for Metal GPU acceleration.</p>
+<pre><span class="c"># 1. models (native Ollama)</span>
+ollama pull nomic-embed-text && ollama pull qwen2.5:7b-instruct
+
+<span class="c"># 2. secrets: fill OPERATOR_TOKEN, ADMIN_TOKEN, QDRANT_API_KEY</span>
+git clone https://github.com/Harshitraiii2005/AI-Support-Assistant-for-PAM-Operations-secure-RAG.git && cd AI-Support-Assistant-for-PAM-Operations-secure-RAG
+cp .env.example .env
+
+<span class="c"># 3. qdrant + ingest + api + ui  →  http://localhost:8501</span>
+docker compose up --build
+
+<span class="c"># tests (offline) and evaluation (needs Ollama)</span>
+uv run pytest -q
+uv run python -m pam_copilot.evaluate</pre>
+</div></section>
+
+<section><div class="wrap">
+  <h2>Limitations</h2>
+  <ul class="limits">
+    <li><b>Simulated data.</b> All <code>SIM-</code> error codes and logs are fictional; it has not been tested on real CyberArk logs.</li>
+    <li><b>Heuristic injection detection.</b> Paraphrases can get past the regexes. The structural controls limit the damage, but a plausible false procedure in an ingested document can only be stopped by reviewing documents before ingest.</li>
+    <li><b>Small local models.</b> Judge scores come from an 8B model and are indicative only.</li>
+    <li><b>Demo-grade operations.</b> Static role tokens instead of SSO, no TLS in compose, single-process audit lock.</li>
+  </ul>
+</div></section>
+
+<footer><div class="wrap">
+  PAM Copilot is a portfolio project. It is not affiliated with or endorsed by CyberArk. All runbooks are original; all log data and <code>SIM-</code> error codes are fictional and labeled as simulated. · <a href="https://github.com/Harshitraiii2005/AI-Support-Assistant-for-PAM-Operations-secure-RAG">Source on GitHub</a>
+</div></footer>
+</body>
+</html>
